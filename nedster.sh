@@ -1,22 +1,11 @@
 #!/bin/bash
-# Launch script for Nedster
+# Global wrapper to run Nedster from anywhere
 
-# Suppress HF warnings
-export TRANSFORMERS_VERBOSITY=error
-export HF_HUB_DISABLE_SYMLINKS_WARNING=1
-export TOKENIZERS_PARALLELISM=false
+# Change to the Nedster repository directory
+cd "/home/mnm/AI_Lab/Workspace/Nedster" || exit 1
 
-# Get the directory of this script
-DIR="/home/mnm/AI_Lab/Workspace/Nedster"
-cd "$DIR"
+# Activate the virtual environment
+source .venv/bin/activate
 
-# Activate virtual environment
-if [ -f "./venv/bin/activate" ]; then
-    source ./venv/bin/activate
-else
-    echo "Error: Virtual environment not found at $DIR/venv"
-    exit 1
-fi
-
-# Pass all arguments to nedster.py
+# Execute Nedster with passed arguments
 exec python3 nedster.py "$@"

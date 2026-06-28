@@ -57,6 +57,36 @@ class Retriever:
                     self.bm25 = BM25Okapi(tokenized_corpus)
                     print(f"BM25 index built with {len(tokenized_corpus)} chunks.")
 
+    def reembed_file(self, rel_path: str):
+        """Incrementally re-embed one changed file in ChromaDB."""
+        if not self.doc_collection:
+            return
+        try:
+            from rag_engine.ingestion import get_text_from_file, chunk_text, embed_file_chunks
+            import os
+            
+            abs_path = os.path.abspath(rel_path)
+            filename = os.path.basename(abs_path)
+            
+            text = get_text_from_file(abs_path)
+            if not text.strip():
+                return
+                
+            # Delete old chunks first
+            try:
+                self.doc_collection.delete(where={"source_file": filename})
+            except Exception:
+                pass
+                
+            chunks = chunk_text(text, filename=filename, chunk_size=1200, overlap=200)
+            embed_file_chunks(chunks, self.embedder, self.doc_collection, filename)
+            print(f"[RAG Engine] Incrementally re-embedded {filename} ({len(chunks)} chunks).")
+            
+            # Rebuild the BM25 index to keep searches up-to-date
+            self._init_bm25()
+        except Exception as e:
+            print(f"[RAG Engine] Failed to incrementally index {rel_path}: {e}")
+
     def add_to_memory(
         self, user_query: str, ai_response: str, session_id: str = "unknown"
     ):

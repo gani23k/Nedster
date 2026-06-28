@@ -8,16 +8,16 @@ from difflib import unified_diff
 
 class NedsterTUI:
     COLORS = {
-        "prompt": "bold white",
-        "user": "bold white",
-        "agent": "color(253)",  # ~90% white
-        "tool": "color(245)",  # ~50% white
-        "edit": "color(245)",
-        "success": "bold green",
-        "warning": "bold yellow",
-        "error": "bold red",
-        "thinking": "color(245) italic",  # ~50% white italic
-        "footer": "dim",
+        "prompt": "bold #FFFFFF on #191D32", # White on Deep Blue
+        "user": "bold #FFFFFF",          # White
+        "agent": "#FFFFFF",               # White
+        "tool": "#D4FE08",                # Accent Yellow
+        "edit": "#D4FE08",                # Accent Yellow
+        "success": "bold #D4FE08",        # Accent Yellow
+        "warning": "bold #FFA500",        # Orange for warning
+        "error": "bold #FF0000",          # Red for error
+        "thinking": "#FFFFFF italic",     # White italic
+        "footer": "#D4FE08",              # Accent Yellow
     }
 
     def __init__(self):
@@ -114,19 +114,19 @@ class NedsterTUI:
     def print_boot_logo(self):
         """Prints the ASCII logo."""
         self.console.print(
-            "[bold cyan] ██   ██  ███████  ██████   ███████  ███████  ███████  ██████  [/]"
+            "[bold #D4FE08] ██   ██  ███████  ██████   ███████  ███████  ███████  ██████  [/]"
         )
         self.console.print(
-            "[bold cyan] ███  ██  ██       ██   ██  ██         ███    ██       ██   ██ [/]"
+            "[bold #D4FE08] ███  ██  ██       ██   ██  ██         ███    ██       ██   ██ [/]"
         )
         self.console.print(
-            "[bold cyan] ██ █ ██  █████    ██   ██  ███████    ███    █████    ██████  [/]"
+            "[bold #D4FE08] ██ █ ██  █████    ██   ██  ███████    ███    █████    ██████  [/]"
         )
         self.console.print(
-            "[bold cyan] ██  ███  ██       ██   ██       ██    ███    ██       ██  ██  [/]"
+            "[bold #D4FE08] ██  ███  ██       ██   ██       ██    ███    ██       ██  ██  [/]"
         )
         self.console.print(
-            "[bold cyan] ██   ██  ███████  ██████   ███████    ███    ███████  ██   ██ [/]"
+            "[bold #D4FE08] ██   ██  ███████  ██████   ███████    ███    ███████  ██   ██ [/]"
         )
         self.console.print("                      [dim]Unchained Local AI[/]\n")
 
@@ -151,19 +151,19 @@ class NedsterTUI:
     ) -> None:
         """Print detailed boot screen."""
         self.console.print(
-            "[bold cyan] ██   ██  ███████  ██████   ███████  ███████  ███████  ██████  [/]"
+            "[bold #D4FE08] ██   ██  ███████  ██████   ███████  ███████  ███████  ██████  [/]"
         )
         self.console.print(
-            "[bold cyan] ███  ██  ██       ██   ██  ██         ███    ██       ██   ██ [/]"
+            "[bold #D4FE08] ███  ██  ██       ██   ██  ██         ███    ██       ██   ██ [/]"
         )
         self.console.print(
-            "[bold cyan] ██ █ ██  █████    ██   ██  ███████    ███    █████    ██████  [/]"
+            "[bold #D4FE08] ██ █ ██  █████    ██   ██  ███████    ███    █████    ██████  [/]"
         )
         self.console.print(
-            "[bold cyan] ██  ███  ██       ██   ██       ██    ███    ██       ██  ██  [/]"
+            "[bold #D4FE08] ██  ███  ██       ██   ██       ██    ███    ██       ██  ██  [/]"
         )
         self.console.print(
-            "[bold cyan] ██   ██  ███████  ██████   ███████    ███    ███████  ██   ██ [/]"
+            "[bold #D4FE08] ██   ██  ███████  ██████   ███████    ███    ███████  ██   ██ [/]"
         )
         self.console.print("                      [dim]Unchained Local AI[/]\n")
 

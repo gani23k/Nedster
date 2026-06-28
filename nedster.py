@@ -16,7 +16,7 @@ from prompt_toolkit.completion import WordCompleter
 
 from tui import NedsterTUI
 from swarm_coordinator import main_swarm_entry
-from skill_manager import install_skill
+# from skill_manager import install_skill
 
 # --- Globals & Utils ---
 _KEEP_VRAM = False
@@ -94,52 +94,73 @@ def handle_slash_command(cmd: str, agent, project_dir: str):
 
     if command in ["/exit", "/quit", "/bye"]:
         return "exit"
-    elif command == "/think":
-        return "think_toggled"
-
-    elif command in ["/model", "/models"]:
+    elif command == "/undo":
+        tui.print_status("Rolling back to last safe state...")
         try:
-            import ollama
-
-            client = ollama.Client(host="127.0.0.1")
-            models_list = client.list().get("models", [])
-            _AVAILABLE_MODELS_CACHE = [m["model"] for m in models_list]
-            tui.print_status("Available models:")
-            for i, model in enumerate(models_list):
-                name, cap = model["model"], _get_model_capability(model["model"])
-                cap_icon = {
-                    "full": "★★★",
-                    "tools": "★★☆",
-                    "chat": "★☆☆",
-                    "embed": "---",
-                }[cap]
-                active = " ← ACTIVE" if name.startswith(_ACTIVE_MODEL_NAME) else ""
-                print(f"  [{i + 1}] {name.ljust(40)} {cap_icon}{active}")
-            print("\nUse /switch <name_or_number> to change.")
-        except Exception as e:
-            tui.print_error(f"Ollama connection failed: {e}")
+            subprocess.run(["git", "reset", "--hard", "HEAD"], cwd=project_dir, check=True, capture_output=True)
+            subprocess.run(["git", "clean", "-fd"], cwd=project_dir, check=True, capture_output=True)
+            tui.print_success("Undo complete. Files restored.")
+        except subprocess.CalledProcessError as e:
+            tui.print_error(f"Undo failed: {e.stderr.decode()}")
+            
+    elif command in ["/model", "/models"]:
+        if agent.backend == "api":
+            tui.print_status(f"Current Cloud Model: {_ACTIVE_MODEL_NAME}")
+            print("To switch models, type: /switch <provider>/<model_name>")
+            print("Example: /switch openai/gpt-4o")
+        else:
+            try:
+                import ollama
+                client = ollama.Client(host="127.0.0.1")
+                models_list = client.list().get("models", [])
+                _AVAILABLE_MODELS_CACHE = [m["model"] for m in models_list]
+                tui.print_status("Available local models:")
+                for i, model in enumerate(models_list):
+                    name, cap = model["model"], _get_model_capability(model["model"])
+                    cap_icon = {"full": "★★★", "tools": "★★☆", "chat": "★☆☆", "embed": "---"}[cap]
+                    active = " ← ACTIVE" if name.startswith(_ACTIVE_MODEL_NAME) else ""
+                    print(f"  [{i + 1}] {name.ljust(40)} {cap_icon}{active}")
+                print("\nUse /switch <name_or_number> to change.")
+            except Exception as e:
+                tui.print_error(f"Ollama connection failed: {e}")
 
     elif command == "/switch":
         if not arg:
             tui.print_warning("Usage: /switch <model_name_or_number>")
             return
-        model_to_switch = ""
-        if arg.isdigit() and _AVAILABLE_MODELS_CACHE:
-            try:
-                index = int(arg) - 1
-                if 0 <= index < len(_AVAILABLE_MODELS_CACHE):
-                    model_to_switch = _AVAILABLE_MODELS_CACHE[index]
-                else:
+        
+        model_to_switch = arg
+        if agent.backend == "local":
+            if arg.isdigit() and _AVAILABLE_MODELS_CACHE:
+                try:
+                    index = int(arg) - 1
+                    if 0 <= index < len(_AVAILABLE_MODELS_CACHE):
+                        model_to_switch = _AVAILABLE_MODELS_CACHE[index]
+                    else:
+                        tui.print_error("Invalid model number.")
+                        return
+                except (ValueError, IndexError):
                     tui.print_error("Invalid model number.")
                     return
-            except (ValueError, IndexError):
-                tui.print_error("Invalid model number.")
-                return
+            else:
+                if not any(m.startswith(arg) for m in _AVAILABLE_MODELS_CACHE):
+                    tui.print_error(f"Model '{arg}' not found.")
+                    return
+                model_to_switch = arg
         else:
-            if not any(m.startswith(arg) for m in _AVAILABLE_MODELS_CACHE):
-                tui.print_error(f"Model '{arg}' not found.")
-                return
-            model_to_switch = arg
+            # API Mode
+            import dotenv
+            env_path = Path(".env")
+            if not env_path.exists():
+                env_path.touch()
+            with open(env_path, "r") as f:
+                lines = f.readlines()
+            with open(env_path, "w") as f:
+                for line in lines:
+                    if not line.startswith("NEDSTER_API_MODEL="):
+                        f.write(line)
+                f.write(f"NEDSTER_API_MODEL={model_to_switch}\n")
+            os.environ["NEDSTER_API_MODEL"] = model_to_switch
 
         _ACTIVE_MODEL_NAME = model_to_switch
         agent.model = model_to_switch
@@ -216,22 +237,105 @@ def handle_slash_command(cmd: str, agent, project_dir: str):
     return None
 
 
+def ensure_git_safety(project_dir: str):
+    git_dir = Path(project_dir) / ".git"
+    if not git_dir.exists():
+        tui = NedsterTUI()
+        if click.confirm("No git repo found. Create one to safely track Nedster's changes and enable /undo?"):
+            try:
+                subprocess.run(["git", "init"], cwd=project_dir, check=True, capture_output=True)
+                subprocess.run(["git", "add", "."], cwd=project_dir, check=True, capture_output=True)
+                subprocess.run(["git", "commit", "-m", "Initial commit before Nedster session"], cwd=project_dir, capture_output=True)
+                tui.print_success("Git repository initialized. /undo is now available.")
+            except subprocess.CalledProcessError as e:
+                tui.print_error("Failed to initialize git repository.")
+
+def prompt_brain_selection() -> str:
+    print("\n🧠 Select Nedster's Brain for this session:")
+    print("  [1] Local LLM (Ollama - aria-local)")
+    print("  [2] Cloud API (LiteLLM - Gemini/OpenAI/Anthropic)")
+    while True:
+        choice = input("\nChoice [1/2]: ").strip()
+        if choice in ["1", ""]: return "local"
+        if choice == "2": return "api"
+        print("Invalid choice. Please enter 1 or 2.")
+
+def check_and_setup_api_keys(tui):
+    import dotenv
+    env_path = Path(".env")
+    dotenv.load_dotenv(env_path)
+    
+    has_key = any(os.environ.get(k) for k in ["GEMINI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"])
+    
+    if not has_key:
+        tui.print_warning("No API Key found in .env.")
+        api_key = input("Please paste your API key (Gemini, OpenAI, or Anthropic): ").strip()
+        
+        if api_key.startswith("AIza"):
+            provider = "GEMINI_API_KEY"
+            default_model = "gemini/gemini-3.1-pro-preview"
+        elif api_key.startswith("sk-ant"):
+            provider = "ANTHROPIC_API_KEY"
+            default_model = "anthropic/claude-3-5-sonnet-latest"
+        else:
+            provider = "OPENAI_API_KEY"
+            default_model = "openai/gpt-4o"
+            
+        with open(env_path, "a") as f:
+            f.write(f"\n{provider}={api_key}\n")
+            if not os.environ.get("NEDSTER_API_MODEL"):
+                f.write(f"NEDSTER_API_MODEL={default_model}\n")
+        
+        os.environ[provider] = api_key
+        if not os.environ.get("NEDSTER_API_MODEL"):
+            os.environ["NEDSTER_API_MODEL"] = default_model
+        tui.print_success(f"Saved {provider} to .env securely.")
+
+    if not os.environ.get("NEDSTER_API_MODEL"):
+        print("\nWhich API Model would you like to use?")
+        print("  [1] gemini/gemini-3.1-pro-preview (Google)")
+        print("  [2] openai/gpt-4o (OpenAI)")
+        print("  [3] anthropic/claude-3-5-sonnet-latest (Anthropic)")
+        print("  [4] Custom (Type manually)")
+        choice = input("> ").strip()
+        model_name = "gemini/gemini-3.1-pro-preview"
+        if choice == "2": model_name = "openai/gpt-4o"
+        elif choice == "3": model_name = "anthropic/claude-3-5-sonnet-latest"
+        elif choice == "4": model_name = input("Enter LiteLLM model string (e.g. provider/model-name): ").strip()
+        
+        with open(env_path, "a") as f:
+            f.write(f"NEDSTER_API_MODEL={model_name}\n")
+        os.environ["NEDSTER_API_MODEL"] = model_name
+        tui.print_success(f"Default model set to {model_name}.")
+
 def cmd_repl(project_dir: str, auto: bool, think: bool):
+    ensure_git_safety(project_dir)
+    backend_choice = prompt_brain_selection()
+    
     tui = NedsterTUI()
-    if not check_ollama():
+    if backend_choice == "local" and not check_ollama():
         tui.print_error("Ollama not running. Run: ollama serve")
         sys.exit(1)
+    
+    if backend_choice == "api":
+        check_and_setup_api_keys(tui)
 
     from agent import NedsterAgent
 
-    agent = NedsterAgent(project_dir, auto=auto, think=think)
-    agent.model = _ACTIVE_MODEL_NAME
+    agent = NedsterAgent(project_dir, auto=auto, think=think, backend=backend_choice)
+    if backend_choice == "api":
+        from nedster_api import LiteLLMNedsterBridge
+        agent.model = LiteLLMNedsterBridge().default_model
+        global _ACTIVE_MODEL_NAME
+        _ACTIVE_MODEL_NAME = agent.model
+    else:
+        agent.model = _ACTIVE_MODEL_NAME
 
     history_path = os.path.expanduser("~/.aria/nedster_history.txt")
     os.makedirs(os.path.dirname(history_path), exist_ok=True)
     history = FileHistory(history_path)
     completer = WordCompleter(
-        ["/think", "/exit", "/models", "/switch", "/editor", "/swarm"], ignore_case=True
+        ["/think", "/exit", "/models", "/switch", "/editor", "/swarm", "/undo"], ignore_case=True
     )
     session = PromptSession(history=history, completer=completer)
 
@@ -292,11 +396,20 @@ def repl(ctx):
 @click.argument("prompt")
 @click.pass_context
 def oneshot(ctx, prompt):
+    import dotenv
+    dotenv.load_dotenv(Path(".env"))
+    backend = "api" if "NEDSTER_API_MODEL" in os.environ else "local"
+    
     from agent import NedsterAgent
 
     agent = NedsterAgent(
-        ctx.obj["PROJECT"], auto=ctx.obj["AUTO"], think=ctx.obj["THINK"]
+        ctx.obj["PROJECT"], auto=ctx.obj["AUTO"], think=ctx.obj["THINK"], backend=backend
     )
+    
+    if backend == "api":
+        from nedster_api import LiteLLMNedsterBridge
+        agent.model = LiteLLMNedsterBridge().default_model
+        
     agent.generate(prompt)
 
 
@@ -328,7 +441,7 @@ def work(project_dir, task, job_id, scoped_dirs):
 @cli.command("install-skill")
 @click.argument("skill_url")
 def install_skill_cmd(skill_url):
-    install_skill(skill_url)
+    print("Skills are now automatically discovered via dropping files in skills/")
 
 
 if __name__ == "__main__":

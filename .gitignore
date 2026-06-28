@@ -11,6 +11,7 @@ chroma_db/
 *.log
 session_memory.md
 .nedster_task.md
+.nedster/
 
 # OS-specific
 .DS_Store
@@ -24,3 +25,5 @@ session_memory.md
 patch_*.py
 fix_*.py
 test_*.py
+.env
+theme_guide.md

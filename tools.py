@@ -274,7 +274,7 @@ def _win_list_dir(cmd: str) -> str:
     r = subprocess.run(["dir", path], shell=True, capture_output=True, text=True, timeout=5)
     return r.stdout
 
-def run_bash(cmd: str, timeout: int = 15, **kwargs) -> str:
+def run_bash(cmd: str, timeout: int = 45, **kwargs) -> str:
     import subprocess, os, sys
     if sys.platform == "win32":
         WINDOWS_REDIRECTS = {
@@ -2189,9 +2189,9 @@ def scaffold_project(
 
 TOOL_NAME_ALIASES = {
     # File creation variants
-    "create file":     "write_file",
     "create_file":     "write_file",
-    "create":          "_create_file",
+    "create_file":     "write_file",
+    "create":          "create_file_xml",
     "make_file":       "write_file",
     "new_file":        "write_file",
     "write":           "write_file",
@@ -2312,9 +2312,9 @@ def todowrite(todos: list) -> str:
 TOOL_REGISTRY.update({
     "read_file":         read_file,
     "write_file":        write_file,
-    "_create_file":      _create_file,
+    "create_file_xml":      _create_file,
     "create_file":       write_file,
-    "create file":       write_file,
+    "create_file":       write_file,
     "create":            _create_file,
     "write":             write_file,
     "make_file":         write_file,
@@ -2330,7 +2330,7 @@ TOOL_REGISTRY.update({
     "edit_file":         edit_file,
     "todowrite":         todowrite,
     "workflow":          lambda **kw: __import__('workflows').workflow_tool(**kw),
-    "3d_pipeline":       lambda **kw: __import__('workflows').workflow_tool(**kw),
+    "pipeline_3d":       lambda **kw: __import__('workflows').workflow_tool(**kw),
 
     "market_intel":      market_intel,
     "codebase_map":      codebase_map,
@@ -2498,8 +2498,8 @@ def _safe_write_file(path: str, content: str = "",
 
 # ── nedster_fixer: re-register write_file with safe version ──────────────────
 try:
-    for _alias in ("write_file","create_file","create file","create","write",
-                   "make_file","new_file","_create_file"):
+    for _alias in ("write_file","create_file","create_file","create","write",
+                   "make_file","new_file","create_file_xml"):
         TOOL_REGISTRY[_alias] = lambda **kw: _safe_write_file(**kw)
 except Exception:
     pass
